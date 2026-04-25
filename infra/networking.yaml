@@ -1,0 +1,323 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  MLBStats networking stack — VPC, public and private subnets across two AZs,
+  internet gateway, security groups for RDS and Lambda, and gateway VPC endpoints
+  for S3 and DynamoDB.
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # VPC
+  # ---------------------------------------------------------------------------
+
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: mlbstats-vpc
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  # ---------------------------------------------------------------------------
+  # Internet Gateway
+  # ---------------------------------------------------------------------------
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: mlbstats-igw
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  # ---------------------------------------------------------------------------
+  # Subnets
+  # ---------------------------------------------------------------------------
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: mlbstats-private-1
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: mlbstats-private-2
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.101.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: mlbstats-public-1
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.102.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: mlbstats-public-2
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  # ---------------------------------------------------------------------------
+  # Route tables — public subnets
+  # ---------------------------------------------------------------------------
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: mlbstats-public-rt
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # ---------------------------------------------------------------------------
+  # Route tables — private subnets (no NAT gateway by design)
+  # ---------------------------------------------------------------------------
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: mlbstats-private-rt-1
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: mlbstats-private-rt-2
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable2
+
+  # ---------------------------------------------------------------------------
+  # Security groups
+  # ---------------------------------------------------------------------------
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mlbstats-lambda-sg
+      GroupDescription: >
+        Attached to Lambda functions that access RDS. No inbound rules.
+        Cross-SG egress rules are declared as separate resources to avoid
+        circular dependency with RdsSecurityGroup.
+      VpcId: !Ref Vpc
+      SecurityGroupEgress:
+        - Description: Allow all outbound within VPC CIDR (for VPC endpoints)
+          IpProtocol: "-1"
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: mlbstats-lambda-sg
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mlbstats-rds-sg
+      GroupDescription: >
+        Controls inbound access to the RDS PostgreSQL instance.
+        Cross-SG ingress rules are declared as separate resources to avoid
+        circular dependency with LambdaSecurityGroup.
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: mlbstats-rds-sg
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: prod
+
+  # Declared separately to break the circular dependency between the two SGs.
+  LambdaToRdsEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt LambdaSecurityGroup.GroupId
+      Description: Allow outbound to RDS on PostgreSQL port
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !GetAtt RdsSecurityGroup.GroupId
+
+  RdsFromLambdaIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt RdsSecurityGroup.GroupId
+      Description: PostgreSQL from Lambda security group
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt LambdaSecurityGroup.GroupId
+
+  # ---------------------------------------------------------------------------
+  # VPC Gateway Endpoints (no data-transfer cost, no hourly cost)
+  # ---------------------------------------------------------------------------
+
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+
+  DynamoDbGatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.dynamodb
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+
+# -----------------------------------------------------------------------------
+# Outputs — imported by the data stack
+# -----------------------------------------------------------------------------
+
+Outputs:
+
+  VpcId:
+    Description: VPC ID
+    Value: !Ref Vpc
+    Export:
+      Name: mlbstats-VpcId
+
+  PrivateSubnet1Id:
+    Description: Private subnet 1 ID (AZ 0)
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: mlbstats-PrivateSubnet1Id
+
+  PrivateSubnet2Id:
+    Description: Private subnet 2 ID (AZ 1)
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: mlbstats-PrivateSubnet2Id
+
+  PublicSubnet1Id:
+    Description: Public subnet 1 ID (AZ 0)
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: mlbstats-PublicSubnet1Id
+
+  PublicSubnet2Id:
+    Description: Public subnet 2 ID (AZ 1)
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: mlbstats-PublicSubnet2Id
+
+  RdsSecurityGroupId:
+    Description: Security group ID for the RDS instance
+    Value: !GetAtt RdsSecurityGroup.GroupId
+    Export:
+      Name: mlbstats-RdsSecurityGroupId
+
+  LambdaSecurityGroupId:
+    Description: Security group ID for VPC-attached Lambda functions
+    Value: !GetAtt LambdaSecurityGroup.GroupId
+    Export:
+      Name: mlbstats-LambdaSecurityGroupId

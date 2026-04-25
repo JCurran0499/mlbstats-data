@@ -1,0 +1,477 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  MLBStats data stack — RDS PostgreSQL instance, DynamoDB tables for real-time
+  game data, S3 bucket for raw archival, Secrets Manager credential rotation,
+  and an EventBridge Scheduler-driven Lambda to stop/start RDS on a daily
+  schedule (cost optimisation for a solo-developer project).
+
+# -----------------------------------------------------------------------------
+# Parameters
+# -----------------------------------------------------------------------------
+
+Parameters:
+
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [prod, dev]
+    Description: Deployment environment — used for tagging.
+
+# -----------------------------------------------------------------------------
+# Resources
+# -----------------------------------------------------------------------------
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # Secrets Manager — RDS credentials
+  # ---------------------------------------------------------------------------
+
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: mlbstats/db/credentials
+      Description: Auto-generated credentials for the MLBStats RDS PostgreSQL instance.
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "mlbstats_admin"}'
+        GenerateStringKey: "password"
+        ExcludeCharacters: '/@" '
+      Tags:
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # RDS — subnet group
+  # ---------------------------------------------------------------------------
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for the MLBStats RDS instance.
+      SubnetIds:
+        - !ImportValue mlbstats-PrivateSubnet1Id
+        - !ImportValue mlbstats-PrivateSubnet2Id
+      Tags:
+        - Key: Name
+          Value: mlbstats-db-subnet-group
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # RDS — PostgreSQL instance
+  # ---------------------------------------------------------------------------
+
+  RdsInstance:
+    Type: AWS::RDS::DBInstance
+    DependsOn: DbSecret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      DBInstanceIdentifier: mlbstats-db
+      Engine: postgres
+      EngineVersion: "16.3"
+      DBInstanceClass: db.t4g.micro
+      MultiAZ: false
+      AllocatedStorage: "20"
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: mlbstats
+      MasterUsername: mlbstats_admin
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DbSecret}:SecretString:password}}"
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups:
+        - !ImportValue mlbstats-RdsSecurityGroupId
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+      DeletionProtection: false
+      Tags:
+        - Key: Name
+          Value: mlbstats-db
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # Secrets Manager — attach secret to RDS instance so host/port/dbname are
+  # automatically injected into the secret JSON by the Secrets Manager service.
+  # ---------------------------------------------------------------------------
+
+  DbSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    DependsOn: RdsInstance
+    Properties:
+      SecretId: !Ref DbSecret
+      TargetId: !Ref RdsInstance
+      TargetType: AWS::RDS::DBInstance
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB — mlb-live-game-state
+  # ---------------------------------------------------------------------------
+
+  LiveGameStateTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: mlb-live-game-state
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: game_id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: game_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB — mlb-play-by-play
+  # ---------------------------------------------------------------------------
+
+  PlayByPlayTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: mlb-play-by-play
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: game_id
+          AttributeType: N
+        - AttributeName: event_id
+          AttributeType: S
+        - AttributeName: game_date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: game_id
+          KeyType: HASH
+        - AttributeName: event_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: game_date-index
+          KeySchema:
+            - AttributeName: game_date
+              KeyType: HASH
+            - AttributeName: game_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB — mlb-pitch-data
+  # ---------------------------------------------------------------------------
+
+  PitchDataTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: mlb-pitch-data
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: game_id
+          AttributeType: N
+        - AttributeName: pitch_id
+          AttributeType: S
+        - AttributeName: pitcher_id
+          AttributeType: N
+        - AttributeName: event_timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: game_id
+          KeyType: HASH
+        - AttributeName: pitch_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: pitcher-index
+          KeySchema:
+            - AttributeName: pitcher_id
+              KeyType: HASH
+            - AttributeName: event_timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # S3 — raw data archival bucket
+  # ---------------------------------------------------------------------------
+
+  RawDataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "mlbstats-raw-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: archive-to-glacier-ir
+            Status: Enabled
+            Transitions:
+              - StorageClass: GLACIER_IR
+                TransitionInDays: 730
+      Tags:
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # IAM — Lambda execution role for RDS stop/start scheduler
+  # ---------------------------------------------------------------------------
+
+  RdsSchedulerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mlbstats-rds-scheduler-lambda-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: RdsStopStartPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:StopDBInstance
+                  - rds:StartDBInstance
+                Resource: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:mlbstats-db"
+      Tags:
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # Lambda — RDS stop/start function
+  # ---------------------------------------------------------------------------
+
+  RdsSchedulerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: mlbstats-rds-scheduler
+      Description: Stops or starts the MLBStats RDS instance on a schedule to reduce cost.
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt RdsSchedulerLambdaRole.Arn
+      Environment:
+        Variables:
+          DB_INSTANCE_ID: mlbstats-db
+      Code:
+        ZipFile: |
+          import boto3, os
+
+          rds = boto3.client('rds')
+          DB = os.environ['DB_INSTANCE_ID']
+
+          def handler(event, context):
+              action = event.get('ACTION', '').lower()
+              if action == 'stop':
+                  rds.stop_db_instance(DBInstanceIdentifier=DB)
+                  print(f"Stopped {DB}")
+              elif action == 'start':
+                  rds.start_db_instance(DBInstanceIdentifier=DB)
+                  print(f"Started {DB}")
+              else:
+                  raise ValueError(f"Unknown ACTION: {action}")
+      Tags:
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # IAM — EventBridge Scheduler role (reused by all four schedule rules)
+  # ---------------------------------------------------------------------------
+
+  SchedulerInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mlbstats-scheduler-invoke-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt RdsSchedulerFunction.Arn
+      Tags:
+        - Key: Project
+          Value: MLBStats
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ---------------------------------------------------------------------------
+  # EventBridge Scheduler — stop DB at 1 AM ET nightly
+  # ---------------------------------------------------------------------------
+
+  RdsStopDaily:
+    Type: AWS::Scheduler::Schedule
+    DependsOn: RdsSchedulerFunction
+    Properties:
+      Name: mlbstats-rds-stop-daily
+      Description: Stop the MLBStats RDS instance at 1 AM ET every day.
+      ScheduleExpression: "cron(0 1 * * ? *)"
+      ScheduleExpressionTimezone: America/New_York
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt RdsSchedulerFunction.Arn
+        RoleArn: !GetAtt SchedulerInvokeRole.Arn
+        Input: '{"ACTION":"stop"}'
+
+  # ---------------------------------------------------------------------------
+  # EventBridge Scheduler — start DB at 7 AM ET nightly
+  # ---------------------------------------------------------------------------
+
+  RdsStartDaily:
+    Type: AWS::Scheduler::Schedule
+    DependsOn: RdsSchedulerFunction
+    Properties:
+      Name: mlbstats-rds-start-daily
+      Description: Start the MLBStats RDS instance at 7 AM ET every day.
+      ScheduleExpression: "cron(0 7 * * ? *)"
+      ScheduleExpressionTimezone: America/New_York
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt RdsSchedulerFunction.Arn
+        RoleArn: !GetAtt SchedulerInvokeRole.Arn
+        Input: '{"ACTION":"start"}'
+
+  # ---------------------------------------------------------------------------
+  # EventBridge Scheduler — re-stop DB weekly during off-season
+  # (AWS auto-restarts a stopped RDS instance after 7 days; this defeats that)
+  # ---------------------------------------------------------------------------
+
+  RdsStopOffSeason:
+    Type: AWS::Scheduler::Schedule
+    DependsOn: RdsSchedulerFunction
+    Properties:
+      Name: mlbstats-rds-stop-offseason
+      Description: >
+        Re-stop the MLBStats RDS instance every Monday at 2 AM ET during the
+        off-season months (Nov–Feb) to defeat the AWS 7-day auto-restart.
+      ScheduleExpression: "cron(0 2 ? NOV,DEC,JAN,FEB MON *)"
+      ScheduleExpressionTimezone: America/New_York
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt RdsSchedulerFunction.Arn
+        RoleArn: !GetAtt SchedulerInvokeRole.Arn
+        Input: '{"ACTION":"stop"}'
+
+  # ---------------------------------------------------------------------------
+  # EventBridge Scheduler — start DB on March 1 each year (season opener)
+  # ---------------------------------------------------------------------------
+
+  RdsStartSeason:
+    Type: AWS::Scheduler::Schedule
+    DependsOn: RdsSchedulerFunction
+    Properties:
+      Name: mlbstats-rds-start-season
+      Description: Start the MLBStats RDS instance at 8 AM ET on March 1 each year.
+      ScheduleExpression: "cron(0 8 1 3 ? *)"
+      ScheduleExpressionTimezone: America/New_York
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt RdsSchedulerFunction.Arn
+        RoleArn: !GetAtt SchedulerInvokeRole.Arn
+        Input: '{"ACTION":"start"}'
+
+# -----------------------------------------------------------------------------
+# Outputs — imported by downstream stacks (API, ingestion, etc.)
+# -----------------------------------------------------------------------------
+
+Outputs:
+
+  RdsEndpoint:
+    Description: Hostname of the MLBStats RDS PostgreSQL instance.
+    Value: !GetAtt RdsInstance.Endpoint.Address
+    Export:
+      Name: mlbstats-RdsEndpoint
+
+  RdsPort:
+    Description: Port of the MLBStats RDS PostgreSQL instance.
+    Value: !GetAtt RdsInstance.Endpoint.Port
+    Export:
+      Name: mlbstats-RdsPort
+
+  SecretsManagerArn:
+    Description: ARN of the Secrets Manager secret holding RDS credentials.
+    Value: !Ref DbSecret
+    Export:
+      Name: mlbstats-SecretsManagerArn
+
+  DynamoLiveState:
+    Description: Name of the DynamoDB table for live game state.
+    Value: !Ref LiveGameStateTable
+    Export:
+      Name: mlbstats-DynamoLiveState
+
+  DynamoPlayByPlay:
+    Description: Name of the DynamoDB table for play-by-play events.
+    Value: !Ref PlayByPlayTable
+    Export:
+      Name: mlbstats-DynamoPlayByPlay
+
+  DynamoPitchData:
+    Description: Name of the DynamoDB table for pitch-level data.
+    Value: !Ref PitchDataTable
+    Export:
+      Name: mlbstats-DynamoPitchData
+
+  S3BucketName:
+    Description: Name of the S3 bucket used for raw data archival.
+    Value: !Ref RawDataBucket
+    Export:
+      Name: mlbstats-S3BucketName
+
+  S3BucketArn:
+    Description: ARN of the S3 bucket used for raw data archival.
+    Value: !GetAtt RawDataBucket.Arn
+    Export:
+      Name: mlbstats-S3BucketArn
