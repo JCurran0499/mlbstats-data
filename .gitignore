@@ -4,3 +4,14 @@ CLAUDE.md
 
 # Dependencies
 requirements.txt
+
+# Config
+.vscode
+
+# Database
+atlas.hcl
+migrations/
+
+# Miscellaneous
+docs.md
+meta.py

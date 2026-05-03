@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 mlb-statsapi = "*"
 boto3 = "*"
+psycopg2 = "*"
 
 [dev-packages]
 

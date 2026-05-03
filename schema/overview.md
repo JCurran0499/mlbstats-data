@@ -4,7 +4,7 @@
 
 | Storage | Use When |
 |---|---|
-| **RDS (PostgreSQL)** | Structured, relational, query-heavy (joins, aggregations, filters) |
+| **Neon (PostgreSQL)** | Structured, relational, query-heavy (joins, aggregations, filters) |
 | **DynamoDB** | High-throughput writes, append-only event streams, real-time state |
 | **S3** | Raw API response archival, large batch files, audit trail |
 
@@ -15,18 +15,18 @@ Season
   └── Game (many per season)
         ├── PlayByPlayEvent (many per game)  → DynamoDB
         │     └── Pitch (many per event)    → DynamoDB
-        ├── BattingStats (per player)        → RDS
-        └── PitchingStats (per player)       → RDS
+        ├── BattingStats (per player)        → Neon
+        └── PitchingStats (per player)       → Neon
 
 Team
   ├── Roster → Player (many-to-many via season)
-  ├── TeamStats (per season)                 → RDS
-  └── Standings (daily snapshot)             → RDS
+  ├── TeamStats (per season)                 → Neon
+  └── Standings (daily snapshot)             → Neon
 
 Player
-  ├── BattingStats (game-level + season agg) → RDS
-  ├── PitchingStats (game-level + season agg)→ RDS
-  └── FieldingStats (game-level + season agg)→ RDS
+  ├── BattingStats (game-level + season agg) → Neon
+  ├── PitchingStats (game-level + season agg)→ Neon
+  └── FieldingStats (game-level + season agg)→ Neon
 
 LiveGameState (singleton per active game)    → DynamoDB
 ```

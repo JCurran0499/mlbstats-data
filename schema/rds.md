@@ -1,4 +1,4 @@
-# RDS (PostgreSQL) Schema
+# Neon (PostgreSQL) Schema
 
 All IDs sourced from the MLB Stats API unless noted. Timestamps are UTC.
 
