@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ECR repositories for MLBStats Lambda container images.
+
+Resources:
+  RosterSyncRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: mlbstats/roster-sync
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+Outputs:
+  RosterSyncRepositoryUri:
+    Description: ECR repository URI for roster_sync images
+    Value: !GetAtt RosterSyncRepository.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-RosterSyncRepositoryUri"

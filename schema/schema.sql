@@ -15,23 +15,24 @@ CREATE TABLE teams (
 );
 
 CREATE TABLE players (
-    player_id        INTEGER PRIMARY KEY,
-    first_name       VARCHAR(100) NOT NULL,
-    last_name        VARCHAR(100) NOT NULL,
-    nickname         VARCHAR(100),
-    team_id          INTEGER REFERENCES teams(team_id),
-    primary_number   CHAR(2),
-    birth_date       DATE,
-    birth_country    VARCHAR(100),
-    birth_city       VARCHAR(100),
-    primary_position VARCHAR(5),
-    bats             CHAR(1),
-    throws           CHAR(1),
-    height_inches    SMALLINT,
-    weight_lbs       SMALLINT,
-    debut_date       DATE,
-    active           BOOLEAN NOT NULL DEFAULT TRUE,
-    status_code      VARCHAR(20)
+    player_id               INTEGER PRIMARY KEY,
+    first_name              VARCHAR(100) NOT NULL,
+    last_name               VARCHAR(100) NOT NULL,
+    nickname                VARCHAR(100),
+    team_id                 INTEGER REFERENCES teams(team_id),
+    primary_number          CHAR(2),
+    birth_date              DATE,
+    birth_country           VARCHAR(100),
+    birth_city              VARCHAR(100),
+    birth_state_province    VARCHAR(100),
+    primary_position        VARCHAR(5),
+    bats                    CHAR(1),
+    throws                  CHAR(1),
+    height_inches           SMALLINT,
+    weight_lbs              SMALLINT,
+    debut_date              DATE,
+    active                  BOOLEAN NOT NULL DEFAULT TRUE,
+    status_code             VARCHAR(20)
 );
 
 CREATE TABLE rosters (

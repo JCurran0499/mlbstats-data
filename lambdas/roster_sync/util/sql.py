@@ -59,30 +59,31 @@ def upsert_player(cur: psycopg2.extensions.cursor, player: dict):
         INSERT INTO players (
             player_id, first_name, last_name, nickname, team_id,
             primary_number, birth_date, birth_country, birth_city,
-            primary_position, bats, throws, height_inches, weight_lbs,
-            debut_date, active, status_code
+            birth_state_province, primary_position, bats, throws, height_inches,
+            weight_lbs, debut_date, active, status_code
         )
         VALUES (
             %(player_id)s, %(first_name)s, %(last_name)s, %(nickname)s, %(team_id)s,
             %(primary_number)s, %(birth_date)s, %(birth_country)s, %(birth_city)s,
-            %(primary_position)s, %(bats)s, %(throws)s, %(height_inches)s, %(weight_lbs)s,
+            %(birth_state_province)s, %(primary_position)s, %(bats)s, %(throws)s, %(height_inches)s, %(weight_lbs)s,
             %(debut_date)s, %(active)s, %(status_code)s
         )
         ON CONFLICT (player_id) DO UPDATE SET
-            first_name       = EXCLUDED.first_name,
-            last_name        = EXCLUDED.last_name,
-            nickname         = EXCLUDED.nickname,
-            team_id          = EXCLUDED.team_id,
-            primary_number   = EXCLUDED.primary_number,
-            birth_date       = EXCLUDED.birth_date,
-            birth_country    = EXCLUDED.birth_country,
-            birth_city       = EXCLUDED.birth_city,
-            primary_position = EXCLUDED.primary_position,
-            bats             = EXCLUDED.bats,
-            throws           = EXCLUDED.throws,
-            height_inches    = EXCLUDED.height_inches,
-            weight_lbs       = EXCLUDED.weight_lbs,
-            debut_date       = EXCLUDED.debut_date,
-            active           = EXCLUDED.active,
-            status_code      = EXCLUDED.status_code
+            first_name              = EXCLUDED.first_name,
+            last_name               = EXCLUDED.last_name,
+            nickname                = EXCLUDED.nickname,
+            team_id                 = EXCLUDED.team_id,
+            primary_number          = EXCLUDED.primary_number,
+            birth_date              = EXCLUDED.birth_date,
+            birth_country           = EXCLUDED.birth_country,
+            birth_city              = EXCLUDED.birth_city,
+            birth_state_province    = EXCLUDED.birth_state_province,
+            primary_position        = EXCLUDED.primary_position,
+            bats                    = EXCLUDED.bats,
+            throws                  = EXCLUDED.throws,
+            height_inches           = EXCLUDED.height_inches,
+            weight_lbs              = EXCLUDED.weight_lbs,
+            debut_date              = EXCLUDED.debut_date,
+            active                  = EXCLUDED.active,
+            status_code             = EXCLUDED.status_code
     """, player)

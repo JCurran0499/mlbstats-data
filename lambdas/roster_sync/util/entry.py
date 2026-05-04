@@ -37,23 +37,24 @@ def parse_roster_entry(entry: dict, team_id: int):
         logger.error("Missing status code for player_id=%s", person.get("id"))
 
     return {
-        "player_id":        person["id"],
-        "first_name":       person.get("firstName", ""),
-        "last_name":        person.get("lastName", ""),
-        "nickname":         person.get("nickName") or None,
-        "team_id":          team_id,
-        "primary_number":   person.get("primaryNumber") or None,
-        "birth_date":       person.get("birthDate") or None,
-        "birth_country":    person.get("birthCountry") or None,
-        "birth_city":       person.get("birthCity") or None,
-        "primary_position": pos.get("abbreviation") or None,
-        "bats":             person.get("batSide", {}).get("code") or None,
-        "throws":           person.get("pitchHand", {}).get("code") or None,
-        "height_inches":    parse_height(person.get("height")),
-        "weight_lbs":       person.get("weight") or None,
-        "debut_date":       person.get("mlbDebutDate") or None,
-        "active":           person.get("active", False),
-        "status_code":      status["code"]
+        "player_id":            person["id"],
+        "first_name":           person.get("firstName", ""),
+        "last_name":            person.get("lastName", ""),
+        "nickname":             person.get("nickName") or None,
+        "team_id":              team_id,
+        "primary_number":       person.get("primaryNumber") or None,
+        "birth_date":           person.get("birthDate") or None,
+        "birth_country":        person.get("birthCountry") or None,
+        "birth_city":           person.get("birthCity") or None,
+        "birth_state_province": person.get("birthStateProvince") or None,
+        "primary_position":     pos.get("abbreviation") or None,
+        "bats":                 person.get("batSide", {}).get("code") or None,
+        "throws":               person.get("pitchHand", {}).get("code") or None,
+        "height_inches":        parse_height(person.get("height")),
+        "weight_lbs":           person.get("weight") or None,
+        "debut_date":           person.get("mlbDebutDate") or None,
+        "active":               person.get("active", False),
+        "status_code":          status["code"]
     }
 
 def parse_team(team: dict):

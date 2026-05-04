@@ -35,7 +35,7 @@ LiveGameState (singleton per active game)    → DynamoDB
 
 - **Stat aggregates are stored, not always computed**: Season-level aggregates (AVG, ERA, OPS, etc.) are stored as columns rather than computed on every query. They are refreshed on a schedule. This makes leaderboard queries fast.
 - **Game-level and season-level stats share the same tables**: A `game_id` FK distinguishes game-level rows from season aggregates (`game_id IS NULL`).
-- **Live game state is ephemeral**: DynamoDB holds the current state of an in-progress game. Once final, the structured result is written to RDS and the DynamoDB entry can expire.
+- **Live game state is ephemeral**: DynamoDB holds the current state of an in-progress game. Once final, the structured result is written to Neon and the DynamoDB entry can expire.
 - **Play-by-play is write-once, retained indefinitely**: Events are appended in real time and never mutated.
 - **Raw API responses are always archived to S3** before being processed, so any schema changes can trigger a reprocess from source.
 - **No player deduplication strategy yet**: Player IDs from the MLB Stats API are used as the canonical identifier. `pybaseball` / Statcast data will be joined via the same MLB player ID where available.
@@ -47,8 +47,8 @@ LiveGameState (singleton per active game)    → DynamoDB
 | Live game state | DynamoDB | Every ~15s during games |
 | Play-by-play events | DynamoDB | On each event (~real-time) |
 | Pitch data | DynamoDB | On each pitch |
-| Game results (final) | RDS | End of game |
-| Player game stats | RDS | End of game |
-| Player season stats | RDS | Every 4–6 hours |
-| Team stats / standings | RDS | Every 4–6 hours |
-| Schedule | RDS | Daily |
+| Game results (final) | Neon | End of game |
+| Player game stats | Neon | End of game |
+| Player season stats | Neon | Every 4–6 hours |
+| Team stats / standings | Neon | Every 4–6 hours |
+| Schedule | Neon | Daily |

@@ -7,6 +7,7 @@ from shared import secrets, db
 from util import entry, sql
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 # --- API fetch layer ---------------------------------------------------------

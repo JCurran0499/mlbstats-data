@@ -1,6 +1,6 @@
 FROM public.ecr.aws/lambda/python:3.12
 
-RUN dnf install -y libpq-devel && dnf clean all
+RUN dnf install -y gcc libpq-devel python3-devel && dnf clean all
 
 COPY roster_sync/requirements.txt requirements.txt
 RUN pip install -r requirements.txt --no-cache-dir
