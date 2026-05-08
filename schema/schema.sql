@@ -18,6 +18,7 @@ CREATE TABLE players (
     player_id               INTEGER PRIMARY KEY,
     first_name              VARCHAR(100) NOT NULL,
     last_name               VARCHAR(100) NOT NULL,
+    full_name               VARCHAR(200),
     nickname                VARCHAR(100),
     team_id                 INTEGER REFERENCES teams(team_id),
     primary_number          CHAR(2),
@@ -74,7 +75,6 @@ CREATE TABLE batting_stats (
     player_id         INTEGER NOT NULL REFERENCES players(player_id),
     team_id           INTEGER NOT NULL REFERENCES teams(team_id),
     season_year       SMALLINT NOT NULL,
-    game_id           INTEGER REFERENCES games(game_id),
     games_played      SMALLINT,
     plate_appearances SMALLINT,
     at_bats           SMALLINT,
@@ -101,8 +101,7 @@ CREATE TABLE batting_stats (
     iso               NUMERIC(5,3),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
--- game_id is nullable; COALESCE(-1) makes the unique constraint work for season aggregates
-CREATE UNIQUE INDEX batting_stats_unique ON batting_stats (player_id, season_year, COALESCE(game_id, -1));
+CREATE UNIQUE INDEX batting_stats_unique ON batting_stats (player_id, season_year);
 CREATE INDEX batting_stats_hr_leaderboard  ON batting_stats (season_year, home_runs DESC);
 CREATE INDEX batting_stats_ops_leaderboard ON batting_stats (season_year, ops DESC);
 
@@ -111,7 +110,6 @@ CREATE TABLE pitching_stats (
     player_id         INTEGER NOT NULL REFERENCES players(player_id),
     team_id           INTEGER NOT NULL REFERENCES teams(team_id),
     season_year       SMALLINT NOT NULL,
-    game_id           INTEGER REFERENCES games(game_id),
     games_pitched     SMALLINT,
     games_started     SMALLINT,
     complete_games    SMALLINT,
@@ -143,6 +141,7 @@ CREATE TABLE pitching_stats (
     war               NUMERIC(5,2),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE UNIQUE INDEX pitching_stats_unique       ON pitching_stats (player_id, season_year);
 CREATE INDEX pitching_stats_era_leaderboard ON pitching_stats (season_year, era ASC);
 CREATE INDEX pitching_stats_k_leaderboard   ON pitching_stats (season_year, strikeouts DESC);
 
@@ -151,7 +150,6 @@ CREATE TABLE fielding_stats (
     player_id    INTEGER NOT NULL REFERENCES players(player_id),
     team_id      INTEGER NOT NULL REFERENCES teams(team_id),
     season_year  SMALLINT NOT NULL,
-    game_id      INTEGER REFERENCES games(game_id),
     position     CHAR(5) NOT NULL,
     games        SMALLINT,
     innings      NUMERIC(6,1),
@@ -164,6 +162,7 @@ CREATE TABLE fielding_stats (
     uzr          NUMERIC(5,1),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE UNIQUE INDEX fielding_stats_unique ON fielding_stats (player_id, season_year, position);
 
 CREATE TABLE standings (
     standing_id              SERIAL  PRIMARY KEY,

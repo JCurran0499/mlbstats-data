@@ -40,6 +40,7 @@ def parse_roster_entry(entry: dict, team_id: int):
         "player_id":            person["id"],
         "first_name":           person.get("firstName", ""),
         "last_name":            person.get("lastName", ""),
+        "full_name":            person.get("fullName", ""),
         "nickname":             person.get("nickName") or None,
         "team_id":              team_id,
         "primary_number":       person.get("primaryNumber") or None,

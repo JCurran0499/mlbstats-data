@@ -57,13 +57,13 @@ def upsert_team(cur: psycopg2.extensions.cursor, team: dict):
 def upsert_player(cur: psycopg2.extensions.cursor, player: dict):
     cur.execute("""
         INSERT INTO players (
-            player_id, first_name, last_name, nickname, team_id,
+            player_id, first_name, last_name, full_name, nickname, team_id,
             primary_number, birth_date, birth_country, birth_city,
             birth_state_province, primary_position, bats, throws, height_inches,
             weight_lbs, debut_date, active, status_code
         )
         VALUES (
-            %(player_id)s, %(first_name)s, %(last_name)s, %(nickname)s, %(team_id)s,
+            %(player_id)s, %(first_name)s, %(last_name)s, %(full_name)s, %(nickname)s, %(team_id)s,
             %(primary_number)s, %(birth_date)s, %(birth_country)s, %(birth_city)s,
             %(birth_state_province)s, %(primary_position)s, %(bats)s, %(throws)s, %(height_inches)s, %(weight_lbs)s,
             %(debut_date)s, %(active)s, %(status_code)s
