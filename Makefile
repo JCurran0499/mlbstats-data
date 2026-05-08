@@ -22,7 +22,7 @@ atlas-dev:
 	docker start atlas-dev || docker run -d --name atlas-dev -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=dev -p 5432:5432 postgres:17
 
 deploy-db:
-	atlas schema apply --env prod --to file://schema/schema.sql
+	atlas schema apply --env prod --to file://schema.sql
 
 # Optional: LAMBDA — restricts the build to a single lambda; omit to build all lambdas
 build:

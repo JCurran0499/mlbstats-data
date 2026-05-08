@@ -13,5 +13,4 @@ atlas.hcl
 migrations/
 
 # Miscellaneous
-docs.md
-meta.py
+sandbox.py
