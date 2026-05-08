@@ -2,6 +2,7 @@ import re
 import logging
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 _league_abbreviations = {
     "American League": "AL",

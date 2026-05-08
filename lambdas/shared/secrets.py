@@ -3,6 +3,7 @@ import boto3
 import logging
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def get_connection_string():
     parameter_name = os.environ['DB_CONNECTION_PARAMETER']

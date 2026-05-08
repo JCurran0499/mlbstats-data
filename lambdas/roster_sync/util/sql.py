@@ -2,6 +2,7 @@ import logging
 import psycopg2
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def fetch_active_roster(cur: psycopg2.extensions.cursor, team_id: int, season_year: int):

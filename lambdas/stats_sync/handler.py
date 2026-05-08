@@ -8,6 +8,7 @@ from shared import secrets, db, schedule
 from util import sql, entry
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 PLAYER_STATS_MAX_ATTEMPTS = 4
 PLAYER_STATS_BASE_BACKOFF_SECONDS = 1.0

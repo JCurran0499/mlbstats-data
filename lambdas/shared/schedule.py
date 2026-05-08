@@ -4,6 +4,7 @@ from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 _ET = ZoneInfo("America/New_York")
 

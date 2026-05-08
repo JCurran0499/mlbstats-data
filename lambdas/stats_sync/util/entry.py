@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal, InvalidOperation
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 HITTING = "hitting"
 PITCHING = "pitching"
