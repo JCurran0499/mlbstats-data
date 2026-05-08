@@ -1,9 +1,10 @@
 import logging
 import random
 import time
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 import statsapi
-from shared import secrets, db
+from shared import secrets, db, schedule
 from util import sql, entry
 
 logger = logging.getLogger()
@@ -12,12 +13,6 @@ PLAYER_STATS_MAX_ATTEMPTS = 4
 PLAYER_STATS_BASE_BACKOFF_SECONDS = 1.0
 
 # --- API fetch layer ---------------------------------------------------------
-
-def fetch_season_dates(season: int):
-    logger.info("Fetching MLB schedule for season %s from Stats API", season)
-    schedule = statsapi.get("seasons", {"sportId": 1, "season": season})
-    return schedule["seasons"]
-
 
 def fetch_player_stats(player_id: int, season: int):
     logger.info("Fetching stats for player %s in season %s", player_id, season)
@@ -59,25 +54,20 @@ def sync_player_stats(cur, player_id: int, team_id: int, season: int):
 
 # --- Orchestration -----------------------------------------------------------
 
+_ET = ZoneInfo("America/New_York")
+_EARLIEST_HOUR_ET = 9
+
 def lambda_handler(event, context):
-    today = date.today()
+    now_et = datetime.now(_ET)
+    if now_et.hour < _EARLIEST_HOUR_ET:
+        logger.info("Skipping stats_sync: before %sam ET", _EARLIEST_HOUR_ET)
+        return {"skipped": True, "reason": "before_earliest_hour"}
+
+    today = now_et.date()
     season = today.year
 
-    season_schedule = fetch_season_dates(season)
-
-    if not season_schedule:
-        logger.info("Skipping roster_sync: no season data returned for season %s", season)
-        return {"skipped": True, "reason": "no_season_data"}
-
-    season_info = season_schedule[0]
-    season_start = date.fromisoformat(season_info["seasonStartDate"])
-    season_end = date.fromisoformat(season_info["seasonEndDate"])
-
-    if today < season_start or today > season_end:
-        logger.info(
-            "Skipping roster_sync: today (%s) is outside season window (%s – %s)",
-            today, season_start, season_end,
-        )
+    if not schedule.validate_in_season():
+        logger.info("Skipping stats_sync: not in season")
         return {"skipped": True, "reason": "outside_season_window"}
     
     db_connection_string = secrets.get_connection_string()

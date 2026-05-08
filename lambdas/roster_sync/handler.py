@@ -1,9 +1,10 @@
 import logging
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import statsapi
 import psycopg2
-from shared import secrets, db
+from shared import secrets, db, schedule
 from util import entry, sql
 
 logger = logging.getLogger()
@@ -11,12 +12,6 @@ logger.setLevel(logging.INFO)
 
 
 # --- API fetch layer ---------------------------------------------------------
-
-def fetch_season_dates(season: int):
-    logger.info("Fetching MLB schedule for season %s from Stats API", season)
-    schedule = statsapi.get("seasons", {"sportId": 1, "season": season})
-    return schedule["seasons"]
-
 
 def fetch_teams(season: int):
     logger.info("Fetching MLB teams from Stats API")
@@ -60,25 +55,14 @@ def sync_team_roster(cur: psycopg2.extensions.cursor, team_id: int, season_year:
 
 # --- Orchestration -----------------------------------------------------------
 
+_ET = ZoneInfo("America/New_York")
+
 def lambda_handler(event, context):
-    today = date.today()
+    today = datetime.now(_ET).date()
     season = today.year
 
-    season_schedule = fetch_season_dates(season)
-
-    if not season_schedule:
-        logger.info("Skipping roster_sync: no season data returned for season %s", season)
-        return {"skipped": True, "reason": "no_season_data"}
-
-    season_info = season_schedule[0]
-    season_start = date.fromisoformat(season_info["seasonStartDate"])
-    season_end = date.fromisoformat(season_info["seasonEndDate"])
-
-    if today < season_start or today > season_end:
-        logger.info(
-            "Skipping roster_sync: today (%s) is outside season window (%s – %s)",
-            today, season_start, season_end,
-        )
+    if not schedule.validate_in_season():
+        logger.info("Skipping roster_sync: not in season")
         return {"skipped": True, "reason": "outside_season_window"}
 
     db_connection_string = secrets.get_connection_string()

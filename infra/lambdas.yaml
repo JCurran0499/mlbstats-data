@@ -1,10 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: Lambda functions, IAM roles, CloudWatch alarms, and EventBridge schedules for MLBStats ingestion.
 
-Parameters:
-  RosterSyncImageTag:
-    Type: String
-    Description: Image tag (or digest) to deploy for the roster_sync Lambda
+# Image tags are read from SSM at deploy time:
+#   /mlbstats/lambdas/<name>/image-tag
+# The Makefile `push` target writes the tag after a successful docker push.
 
 Resources:
 
@@ -14,6 +13,15 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /aws/lambda/mlbstats-roster-sync
+      RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  StatsSyncLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/mlbstats-stats-sync
       RetentionInDays: 30
       Tags:
         - Key: Project
@@ -35,13 +43,50 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - PolicyName: ReadDBSecret
+        - PolicyName: ReadDBParameter
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource: !ImportValue mlbstats-secrets-DBSecretArn
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mlbstats/db/connection-string"
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  StatsSyncRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mlbstats-stats-sync-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadDBParameter
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mlbstats/db/connection-string"
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
       Tags:
         - Key: Project
           Value: MLBStats
@@ -69,6 +114,29 @@ Resources:
         - Key: Project
           Value: MLBStats
 
+  StatsSyncSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mlbstats-stats-sync-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt StatsSyncFunction.Arn
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
   # ---- Lambda ---------------------------------------------------------------
 
   RosterSyncFunction:
@@ -79,14 +147,34 @@ Resources:
       PackageType: Image
       Code:
         ImageUri: !Sub
-          - "${RepoUri}:${RosterSyncImageTag}"
+          - "${RepoUri}:{{resolve:ssm:/mlbstats/lambdas/roster-sync/image-tag}}"
           - RepoUri: !ImportValue mlbstats-ecr-RosterSyncRepositoryUri
       Role: !GetAtt RosterSyncRole.Arn
       Timeout: 300
       MemorySize: 512
       Environment:
         Variables:
-          DB_CONNECTION_SECRET: !ImportValue mlbstats-secrets-DBSecretName
+          DB_CONNECTION_PARAMETER: /mlbstats/db/connection-string
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  StatsSyncFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: StatsSyncLogGroup
+    Properties:
+      FunctionName: mlbstats-stats-sync
+      PackageType: Image
+      Code:
+        ImageUri: !Sub
+          - "${RepoUri}:{{resolve:ssm:/mlbstats/lambdas/stats-sync/image-tag}}"
+          - RepoUri: !ImportValue mlbstats-ecr-StatsSyncRepositoryUri
+      Role: !GetAtt StatsSyncRole.Arn
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_CONNECTION_PARAMETER: /mlbstats/db/connection-string
       Tags:
         - Key: Project
           Value: MLBStats
@@ -119,4 +207,17 @@ Resources:
       Target:
         Arn: !GetAtt RosterSyncFunction.Arn
         RoleArn: !GetAtt RosterSyncSchedulerRole.Arn
+      State: ENABLED
+
+  StatsSyncSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: mlbstats-stats-sync
+      Description: Trigger stats_sync every 4 hours
+      ScheduleExpression: "rate(4 hours)"
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt StatsSyncFunction.Arn
+        RoleArn: !GetAtt StatsSyncSchedulerRole.Arn
       State: ENABLED
