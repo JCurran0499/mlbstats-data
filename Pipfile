@@ -7,6 +7,7 @@ name = "pypi"
 mlb-statsapi = "*"
 boto3 = "*"
 psycopg2 = "*"
+aws-lambda-powertools = "*"
 
 [dev-packages]
 

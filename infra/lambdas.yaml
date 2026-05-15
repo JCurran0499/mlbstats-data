@@ -27,6 +27,15 @@ Resources:
         - Key: Project
           Value: MLBStats
 
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/mlbstats-api
+      RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
   # ---- IAM ------------------------------------------------------------------
 
   RosterSyncRole:
@@ -64,6 +73,37 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: mlbstats-stats-sync-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadDBParameter
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mlbstats/db/connection-string"
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mlbstats-api-role
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -179,6 +219,26 @@ Resources:
         - Key: Project
           Value: MLBStats
 
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ApiLogGroup
+    Properties:
+      FunctionName: mlbstats-api
+      PackageType: Image
+      Code:
+        ImageUri: !Sub
+          - "${RepoUri}:{{resolve:ssm:/mlbstats/lambdas/api/image-tag}}"
+          - RepoUri: !ImportValue mlbstats-ecr-ApiRepositoryUri
+      Role: !GetAtt ApiRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_CONNECTION_PARAMETER: /mlbstats/db/connection-string
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
   # ---- EventBridge Scheduler -----------------------------------------------
 
   RosterSyncMorningSchedule:
@@ -221,3 +281,10 @@ Resources:
         Arn: !GetAtt StatsSyncFunction.Arn
         RoleArn: !GetAtt StatsSyncSchedulerRole.Arn
       State: ENABLED
+
+Outputs:
+  ApiFunctionArn:
+    Description: ARN of the MLBStats API Lambda function.
+    Value: !GetAtt ApiFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiFunctionArn"

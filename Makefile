@@ -6,12 +6,12 @@ STACK   ?=
 TAG     := $(shell git rev-parse --short HEAD)-$(shell date +%s)
 LAMBDA  ?=
 
-.PHONY: build push atlas-dev deploy-db deploy-stack
+.PHONY: build push atlas-dev deploy-db deploy
 
 # Required: STACK — the CloudFormation template filename (without .yaml) and stack name suffix to deploy
-deploy-stack:
+deploy:
 ifndef STACK
-	$(error STACK is required, e.g. make deploy-stack STACK=ecr)
+	$(error STACK is required, e.g. make deploy STACK=ecr)
 endif
 	aws cloudformation deploy \
 		--template-file infra/$(STACK).yaml \

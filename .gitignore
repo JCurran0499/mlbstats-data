@@ -11,6 +11,7 @@ requirements.txt
 # Database
 atlas.hcl
 migrations/
+secrets.json
 
 # Miscellaneous
 sandbox.py

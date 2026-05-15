@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Lambda (container image) and HTTP API Gateway for the MLBStats REST API.
+
+# Image tag is read from SSM at deploy time:
+#   /mlbstats/api/image-tag
+# The Makefile `push-api` target writes the tag after a successful docker push.
+
+Resources:
+
+  # ---- API Gateway (HTTP API v2) --------------------------------------------
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: mlbstats-api
+      ProtocolType: HTTP
+      Description: MLBStats REST API — HTTP API gateway for the FastAPI Lambda.
+      Tags:
+        Project: MLBStats
+
+  ApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !ImportValue mlbstats-lambdas-ApiFunctionArn
+      PayloadFormatVersion: "2.0"
+
+  ApiDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "$default"
+      Target: !Sub "integrations/${ApiIntegration}"
+
+  ApiDefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: "$default"
+      AutoDeploy: true
+      Tags:
+        Project: MLBStats
+
+  # ---- Lambda permission -----------------------------------------------------
+
+  ApiGatewayInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !ImportValue mlbstats-lambdas-ApiFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*"
+
+Outputs:
+  ApiEndpointUrl:
+    Description: Base URL for the MLBStats HTTP API.
+    Value: !GetAtt HttpApi.ApiEndpoint
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiEndpointUrl"
+
