@@ -1,23 +1,27 @@
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.event_handler import APIGatewayHttpResolver
 from adapter import db
+from domain.responses import *
 import psycopg2
 
 logger = Logger()
-app = APIGatewayHttpResolver()
+app = APIGatewayHttpResolver(enable_validation=True)
 
 db_string = db.get_connection_string()
 conn = psycopg2.connect(db_string)
 
 
 @app.get("/health")
-def health():
-    return {"status": "ok"}
+def health() -> dict:
+    return {
+        "status": "ok"
+    }
 
 
 @app.get("/teams")
-def get_teams():
-    return {"teams": db.get_teams(conn)}
+def get_teams() -> Teams:
+    teams = db.get_teams(conn)
+    return Teams(teams=teams)
 
 
 @app.get("/players/{player_id}/info")

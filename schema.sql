@@ -11,7 +11,8 @@ CREATE TABLE teams (
     division      VARCHAR(20) NOT NULL,
     venue_name    VARCHAR(100),
     debut_year    CHAR(4),
-    active        BOOLEAN     NOT NULL DEFAULT TRUE
+    active        BOOLEAN     NOT NULL DEFAULT TRUE,
+    logo_url      VARCHAR(255)
 );
 
 CREATE TABLE players (
@@ -33,7 +34,8 @@ CREATE TABLE players (
     weight_lbs              SMALLINT,
     debut_date              DATE,
     active                  BOOLEAN NOT NULL DEFAULT TRUE,
-    status_code             VARCHAR(20)
+    status_code             VARCHAR(20),
+    headshot_url            VARCHAR(255)
 );
 
 CREATE TABLE rosters (
@@ -63,8 +65,7 @@ CREATE TABLE games (
     winning_team_id       INTEGER REFERENCES teams(team_id),
     losing_team_id        INTEGER REFERENCES teams(team_id),
     game_duration_minutes SMALLINT,
-    attendance            INTEGER,
-    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    attendance            INTEGER
 );
 CREATE INDEX games_game_date        ON games (game_date);
 CREATE INDEX games_home_team_season ON games (home_team_id, season_year);
@@ -73,7 +74,6 @@ CREATE INDEX games_away_team_season ON games (away_team_id, season_year);
 CREATE TABLE batting_stats (
     stat_id           SERIAL  PRIMARY KEY,
     player_id         INTEGER NOT NULL REFERENCES players(player_id),
-    team_id           INTEGER NOT NULL REFERENCES teams(team_id),
     season_year       SMALLINT NOT NULL,
     games_played      SMALLINT,
     plate_appearances SMALLINT,
@@ -98,8 +98,7 @@ CREATE TABLE batting_stats (
     woba              NUMERIC(5,3),
     wrc_plus          SMALLINT,
     babip             NUMERIC(5,3),
-    iso               NUMERIC(5,3),
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    iso               NUMERIC(5,3)
 );
 CREATE UNIQUE INDEX batting_stats_unique ON batting_stats (player_id, season_year);
 CREATE INDEX batting_stats_hr_leaderboard  ON batting_stats (season_year, home_runs DESC);
@@ -108,7 +107,6 @@ CREATE INDEX batting_stats_ops_leaderboard ON batting_stats (season_year, ops DE
 CREATE TABLE pitching_stats (
     stat_id           SERIAL  PRIMARY KEY,
     player_id         INTEGER NOT NULL REFERENCES players(player_id),
-    team_id           INTEGER NOT NULL REFERENCES teams(team_id),
     season_year       SMALLINT NOT NULL,
     games_pitched     SMALLINT,
     games_started     SMALLINT,
@@ -138,8 +136,7 @@ CREATE TABLE pitching_stats (
     bb_pct            NUMERIC(5,3),
     fip               NUMERIC(5,2),
     xfip              NUMERIC(5,2),
-    war               NUMERIC(5,2),
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    war               NUMERIC(5,2)
 );
 CREATE UNIQUE INDEX pitching_stats_unique       ON pitching_stats (player_id, season_year);
 CREATE INDEX pitching_stats_era_leaderboard ON pitching_stats (season_year, era ASC);
@@ -148,7 +145,6 @@ CREATE INDEX pitching_stats_k_leaderboard   ON pitching_stats (season_year, stri
 CREATE TABLE fielding_stats (
     stat_id      SERIAL  PRIMARY KEY,
     player_id    INTEGER NOT NULL REFERENCES players(player_id),
-    team_id      INTEGER NOT NULL REFERENCES teams(team_id),
     season_year  SMALLINT NOT NULL,
     position     CHAR(5) NOT NULL,
     games        SMALLINT,
@@ -159,8 +155,7 @@ CREATE TABLE fielding_stats (
     double_plays SMALLINT,
     fielding_pct NUMERIC(5,3),
     drs          SMALLINT,
-    uzr          NUMERIC(5,1),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    uzr          NUMERIC(5,1)
 );
 CREATE UNIQUE INDEX fielding_stats_unique ON fielding_stats (player_id, season_year, position);
 
@@ -187,7 +182,6 @@ CREATE TABLE standings (
     runs_allowed             SMALLINT,
     run_differential         SMALLINT,
     last_10_wins             SMALLINT,
-    last_10_losses           SMALLINT,
-    updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    last_10_losses           SMALLINT
 );
 CREATE UNIQUE INDEX standings_unique ON standings (team_id, season_year, snapshot_date);

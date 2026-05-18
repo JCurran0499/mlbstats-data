@@ -18,7 +18,7 @@ def fetch_active_players(cur: psycopg2.extensions.cursor, team_id: int, season_y
     cur.execute("""
         SELECT player_id
         FROM rosters
-        WHERE team_id = %s AND season_year = %s AND active = TRUE
+        WHERE team_id = %s AND season_year = %s AND active = TRUE AND roster_status = 'A'
     """, (team_id, season_year))
     return [row[0] for row in cur.fetchall()]
 
@@ -26,13 +26,13 @@ def fetch_active_players(cur: psycopg2.extensions.cursor, team_id: int, season_y
 def upsert_batting_stats(cur: psycopg2.extensions.cursor, stats: dict):
     cur.execute("""
         INSERT INTO batting_stats (
-            player_id, team_id, season_year, games_played, plate_appearances, at_bats,
+            player_id, season_year, games_played, plate_appearances, at_bats,
             runs, hits, doubles, triples, home_runs, rbi, stolen_bases,
             caught_stealing, walks, intentional_walks, strikeouts,
             hit_by_pitch, sac_flies, batting_avg, on_base_pct, slugging_pct,
             ops, woba, wrc_plus, babip, iso
         ) VALUES (
-            %(player_id)s, %(team_id)s, %(season_year)s, %(games_played)s,
+            %(player_id)s, %(season_year)s, %(games_played)s,
             %(plate_appearances)s, %(at_bats)s, %(runs)s, %(hits)s,
             %(doubles)s, %(triples)s, %(home_runs)s, %(rbi)s,
             %(stolen_bases)s, %(caught_stealing)s, %(walks)s,
@@ -41,7 +41,6 @@ def upsert_batting_stats(cur: psycopg2.extensions.cursor, stats: dict):
             %(slugging_pct)s, %(ops)s, %(woba)s, %(wrc_plus)s, %(babip)s, %(iso)s
         )
         ON CONFLICT (player_id, season_year) DO UPDATE SET
-            team_id = EXCLUDED.team_id,
             games_played = EXCLUDED.games_played,
             plate_appearances = EXCLUDED.plate_appearances,
             at_bats = EXCLUDED.at_bats,
@@ -72,14 +71,14 @@ def upsert_batting_stats(cur: psycopg2.extensions.cursor, stats: dict):
 def upsert_pitching_stats(cur: psycopg2.extensions.cursor, stats: dict):
     cur.execute("""
         INSERT INTO pitching_stats (
-            player_id, team_id, season_year, games_pitched, games_started,
+            player_id, season_year, games_pitched, games_started,
             complete_games, shutouts, wins, losses, saves, holds, blown_saves,
             innings_pitched, hits_allowed, runs_allowed, earned_runs,
             home_runs_allowed, walks, intentional_walks, strikeouts,
             hit_batters, wild_pitches, era, whip, k_per_9, bb_per_9,
             hr_per_9, k_pct, bb_pct, fip, xfip, war
         ) VALUES (
-            %(player_id)s, %(team_id)s, %(season_year)s, %(games_pitched)s, %(games_started)s,
+            %(player_id)s, %(season_year)s, %(games_pitched)s, %(games_started)s,
             %(complete_games)s, %(shutouts)s, %(wins)s, %(losses)s, %(saves)s, %(holds)s, %(blown_saves)s,
             %(innings_pitched)s, %(hits_allowed)s, %(runs_allowed)s, %(earned_runs)s,
             %(home_runs_allowed)s, %(walks)s, %(intentional_walks)s, %(strikeouts)s,
@@ -87,7 +86,6 @@ def upsert_pitching_stats(cur: psycopg2.extensions.cursor, stats: dict):
             %(hr_per_9)s, %(k_pct)s, %(bb_pct)s, %(fip)s, %(xfip)s, %(war)s
         )
         ON CONFLICT (player_id, season_year) DO UPDATE SET
-            team_id = EXCLUDED.team_id,
             games_pitched = EXCLUDED.games_pitched,
             games_started = EXCLUDED.games_started,
             complete_games = EXCLUDED.complete_games,
@@ -123,16 +121,15 @@ def upsert_pitching_stats(cur: psycopg2.extensions.cursor, stats: dict):
 def upsert_fielding_stats(cur: psycopg2.extensions.cursor, stats: dict):
     cur.execute("""
         INSERT INTO fielding_stats (
-            player_id, team_id, season_year, position, games,
+            player_id, season_year, position, games,
             innings, putouts, assists, errors, double_plays,
             fielding_pct, drs, uzr
         ) VALUES (
-            %(player_id)s, %(team_id)s, %(season_year)s, %(position)s, %(games)s,
+            %(player_id)s, %(season_year)s, %(position)s, %(games)s,
             %(innings)s, %(putouts)s, %(assists)s, %(errors)s, %(double_plays)s,
             %(fielding_pct)s, %(drs)s, %(uzr)s
         )
         ON CONFLICT (player_id, season_year, position) DO UPDATE SET
-            team_id = EXCLUDED.team_id,
             games = EXCLUDED.games,
             innings = EXCLUDED.innings,
             putouts = EXCLUDED.putouts,

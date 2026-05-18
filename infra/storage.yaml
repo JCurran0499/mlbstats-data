@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: S3 buckets, DynamoDB tables, and IAM roles for MLBStats storage
+
+Resources:
+
+  # ── Images bucket ────────────────────────────────────────────────────────────
+
+  ImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: mlbstats-images
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  ImagesOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: mlbstats-images-oac
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Bucket policy must be created after the distribution so we can reference its ARN.
+  # CloudFormation resolves the dependency automatically via !Sub referencing ImagesDistribution.
+  ImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ImagesBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${ImagesBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${ImagesDistribution}"
+
+  ImagesDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: ImagesBucketOrigin
+            DomainName: !GetAtt ImagesBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt ImagesOriginAccessControl.Id
+        DefaultCacheBehavior:
+          TargetOriginId: ImagesBucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          # AWS managed CachingOptimized policy — long TTLs, compression enabled
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+
+Outputs:
+  ImagesDistributionDomain:
+    Description: CloudFront domain for player/team images (use this to construct image_url values)
+    Value: !GetAtt ImagesDistribution.DomainName
+    Export:
+      Name: mlbstats-images-distribution-domain
+
+  ImagesBucketName:
+    Value: !Ref ImagesBucket
+    Export:
+      Name: mlbstats-images-bucket-name

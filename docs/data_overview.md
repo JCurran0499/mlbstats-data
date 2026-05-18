@@ -21,12 +21,14 @@ Season
 Team
   ├── Roster → Player (many-to-many via season)
   ├── TeamStats (per season)                 → Neon
-  └── Standings (daily snapshot)             → Neon
+  ├── Standings (daily snapshot)             → Neon
+  └── image_url (CloudFront URL)             → Neon
 
 Player
   ├── BattingStats (game-level + season agg) → Neon
   ├── PitchingStats (game-level + season agg)→ Neon
-  └── FieldingStats (game-level + season agg)→ Neon
+  ├── FieldingStats (game-level + season agg)→ Neon
+  └── image_url (CloudFront URL)             → Neon
 
 LiveGameState (singleton per active game)    → DynamoDB
 ```
@@ -39,6 +41,7 @@ LiveGameState (singleton per active game)    → DynamoDB
 - **Play-by-play is write-once, retained indefinitely**: Events are appended in real time and never mutated.
 - **Raw API responses are always archived to S3** before being processed, so any schema changes can trigger a reprocess from source.
 - **No player deduplication strategy yet**: Player IDs from the MLB Stats API are used as the canonical identifier. `pybaseball` / Statcast data will be joined via the same MLB player ID where available.
+- **Player and team images are cached in S3, not fetched at runtime**: Ingestion Lambdas pull headshots and logos from the MLB Stats API and write them to S3 (`mlbstats-images-{account_id}`). The CloudFront URL is stored in `image_url` on the Neon `players`/`teams` row. The frontend uses this URL directly and never calls MLB image endpoints.
 
 ## Refresh Cadence Summary
 

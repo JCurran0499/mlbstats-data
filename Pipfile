@@ -8,6 +8,7 @@ mlb-statsapi = "*"
 boto3 = "*"
 psycopg2 = "*"
 aws-lambda-powertools = "*"
+pydantic = "*"
 
 [dev-packages]
 

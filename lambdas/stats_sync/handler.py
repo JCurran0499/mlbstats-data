@@ -17,20 +17,8 @@ PLAYER_STATS_BASE_BACKOFF_SECONDS = 1.0
 
 def fetch_player_stats(player_id: int, season: int):
     logger.info("Fetching stats for player %s in season %s", player_id, season)
-    for attempt in range(1, PLAYER_STATS_MAX_ATTEMPTS + 1):
-        try:
-            stats = statsapi.player_stat_data(player_id, group="[hitting,pitching,fielding]", type="season", season=season)
-            return stats["stats"]
-        except Exception as exc:
-            if attempt == PLAYER_STATS_MAX_ATTEMPTS:
-                logger.warning("statsapi exhausted retries for player %s after %s attempts", player_id, attempt)
-                raise
-            delay = PLAYER_STATS_BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
-            logger.warning(
-                "statsapi call failed for player %s (attempt %s/%s): %s — retrying in %.2fs",
-                player_id, attempt, PLAYER_STATS_MAX_ATTEMPTS, exc, delay,
-            )
-            time.sleep(delay)
+    stats = statsapi.player_stat_data(player_id, group="[hitting,pitching,fielding]", type="season", season=season)
+    return stats["stats"]
 
 # --- DB sync layer -----------------------------------------------------------
 
@@ -90,9 +78,8 @@ def lambda_handler(event, context):
             team_name = team["name"]
 
             try:
-                with conn:
-                    with conn.cursor() as cur:
-                        players = sql.fetch_active_players(cur, team_id, season)
+                with conn.cursor() as cur:
+                    players = sql.fetch_active_players(cur, team_id, season)
             except Exception:
                 logger.exception(
                     "DB error fetching active players for team %s (%s) — skipping team",

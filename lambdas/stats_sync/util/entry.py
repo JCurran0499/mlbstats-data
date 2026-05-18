@@ -28,7 +28,7 @@ def _find_stat_groups(player_data: list, group: str) -> list[dict] | None:
     return stat_groups
 
 
-def parse_batting_stats(player_data: dict, player_id: int, team_id: int, season: int) -> dict | None:
+def parse_batting_stats(player_data: dict, player_id: int, season: int) -> dict | None:
     batting_stats = _find_stat_groups(player_data, HITTING)
     if not batting_stats:
         return None
@@ -40,7 +40,6 @@ def parse_batting_stats(player_data: dict, player_id: int, team_id: int, season:
 
     return {
         "player_id":         player_id,
-        "team_id":           team_id,
         "season_year":       season,
         "games_played":      stats.get("gamesPlayed"),
         "plate_appearances": stats.get("plateAppearances"),
@@ -69,7 +68,7 @@ def parse_batting_stats(player_data: dict, player_id: int, team_id: int, season:
     }
 
 
-def parse_pitching_stats(player_data: dict, player_id: int, team_id: int, season: int) -> dict | None:
+def parse_pitching_stats(player_data: dict, player_id: int, season: int) -> dict | None:
     pitching_stats = _find_stat_groups(player_data, PITCHING)
     if not pitching_stats:
         return None
@@ -78,7 +77,6 @@ def parse_pitching_stats(player_data: dict, player_id: int, team_id: int, season
 
     return {
         "player_id":         player_id,
-        "team_id":           team_id,
         "season_year":       season,
         "games_pitched":     stats.get("gamesPlayed"),
         "games_started":     stats.get("gamesStarted"),
@@ -112,7 +110,7 @@ def parse_pitching_stats(player_data: dict, player_id: int, team_id: int, season
     }
 
 
-def parse_fielding_stats(player_data: dict, player_id: int, team_id: int, season: int) -> list[dict]:
+def parse_fielding_stats(player_data: dict, player_id: int, season: int) -> list[dict]:
     fielding_stats = _find_stat_groups(player_data, FIELDING)
     if not fielding_stats:
         return None
@@ -121,12 +119,11 @@ def parse_fielding_stats(player_data: dict, player_id: int, team_id: int, season
     for stats in fielding_stats:
         position = stats.get("position", {}).get("abbreviation")
         if not position:
-            logger.warning("Missing position for fielding stats of player_id=%s, team_id=%s, season=%s", player_id, team_id, season)
+            logger.warning("Missing position for fielding stats of player_id=%s, season=%s", player_id, season)
             continue
 
         results.append({
             "player_id":    player_id,
-            "team_id":      team_id,
             "season_year":  season,
             "position":     position,
             "games":        stats.get("gamesPlayed"),

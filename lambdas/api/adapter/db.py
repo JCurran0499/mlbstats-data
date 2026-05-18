@@ -17,8 +17,7 @@ def get_connection_string() -> str:
 def get_teams(conn: psycopg2.extensions.connection) -> list[dict]:
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT team_id, name, abbreviation, city, league, division,"
-            " venue_name, debut_year, active FROM teams ORDER BY name"
+            "SELECT * FROM teams WHERE active IS TRUE ORDER BY name"
         )
         cols = [desc[0] for desc in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]

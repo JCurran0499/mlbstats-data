@@ -6,6 +6,7 @@ COPY api/requirements.txt requirements.txt
 RUN pip install -r requirements.txt --no-cache-dir
 
 COPY api/adapter/ adapter/
+COPY api/domain/ domain/
 COPY api/main.py main.py
 
 CMD ["main.handler"]
