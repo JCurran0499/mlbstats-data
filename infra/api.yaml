@@ -7,6 +7,80 @@ Description: Lambda (container image) and HTTP API Gateway for the MLBStats REST
 
 Resources:
 
+  # ---- Logs -----------------------------------------------------------------
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/mlbstats-api
+      RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  # ---- IAM ------------------------------------------------------------------
+
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mlbstats-api-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadDBParameter
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mlbstats/db/connection-string"
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  # ---- Lambda ---------------------------------------------------------------
+
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ApiLogGroup
+    Properties:
+      FunctionName: mlbstats-api
+      PackageType: Image
+      Code:
+        ImageUri: !Sub
+          - "${RepoUri}:{{resolve:ssm:/mlbstats/api/image-tag}}"
+          - RepoUri: !ImportValue mlbstats-ecr-ApiRepositoryUri
+      Role: !GetAtt ApiRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          DB_CONNECTION_PARAMETER: /mlbstats/db/connection-string
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  ApiGatewayInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ApiFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*"
+
   # ---- API Gateway (HTTP API v2) --------------------------------------------
 
   HttpApi:
@@ -23,7 +97,7 @@ Resources:
     Properties:
       ApiId: !Ref HttpApi
       IntegrationType: AWS_PROXY
-      IntegrationUri: !ImportValue mlbstats-lambdas-ApiFunctionArn
+      IntegrationUri: !GetAtt ApiFunction.Arn
       PayloadFormatVersion: "2.0"
 
   ApiDefaultRoute:
@@ -42,15 +116,6 @@ Resources:
       Tags:
         Project: MLBStats
 
-  # ---- Lambda permission -----------------------------------------------------
-
-  ApiGatewayInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !ImportValue mlbstats-lambdas-ApiFunctionArn
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*"
 
 Outputs:
   ApiEndpointUrl:
@@ -58,4 +123,3 @@ Outputs:
     Value: !GetAtt HttpApi.ApiEndpoint
     Export:
       Name: !Sub "${AWS::StackName}-ApiEndpointUrl"
-
