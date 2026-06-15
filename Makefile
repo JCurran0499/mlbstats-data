@@ -21,15 +21,11 @@ migrate-db:
 # Optional: LAMBDA — restricts the build to a single lambda; omit to build all lambdas
 build:
 	for lambda in $(TARGETS); do \
-		pipenv requirements > lambdas/$$lambda/requirements.txt; \
 		docker build --platform linux/amd64 --provenance=false -f lambdas/$$lambda/Dockerfile -t $$lambda lambdas/; \
-		rm lambdas/$$lambda/requirements.txt; \
 	done
 
 build-api:
-	pipenv requirements > api/requirements.txt
 	docker build --platform linux/amd64 --provenance=false -f api/Dockerfile -t api api/
-	rm api/requirements.txt
 
 ###### Docker Push  ######
 

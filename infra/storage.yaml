@@ -67,6 +67,58 @@ Resources:
           # AWS managed CachingOptimized policy — long TTLs, compression enabled
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
 
+  # ── DynamoDB: live game state ────────────────────────────────────────────────
+
+  LiveGameStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: mlb-live-game-state
+      BillingMode: PAY_PER_REQUEST
+      TableClass: STANDARD
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: false
+      AttributeDefinitions:
+        - AttributeName: game_id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: game_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  ScheduleTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: mlb-schedule
+      BillingMode: PAY_PER_REQUEST
+      TableClass: STANDARD
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: false
+      AttributeDefinitions:
+        - AttributeName: game_date
+          AttributeType: S
+        - AttributeName: game_datetime_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: game_date
+          KeyType: HASH
+        - AttributeName: game_datetime_id
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
 Outputs:
   ImagesDistributionDomain:
     Description: CloudFront domain for player/team images (use this to construct image_url values)

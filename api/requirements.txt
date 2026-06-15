@@ -1,0 +1,4 @@
+aws-lambda-powertools
+psycopg2
+boto3
+pydantic

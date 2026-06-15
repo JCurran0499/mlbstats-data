@@ -1,0 +1,3 @@
+mlb-statsapi
+psycopg2
+boto3

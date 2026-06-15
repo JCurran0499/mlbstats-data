@@ -35,6 +35,17 @@ Resources:
         - Key: Project
           Value: MLBStats
 
+  ScheduleSyncRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: mlbstats/schedule-sync
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
 Outputs:
   RosterSyncRepositoryUri:
     Description: ECR repository URI for roster_sync images
@@ -53,3 +64,9 @@ Outputs:
     Value: !GetAtt ApiRepository.RepositoryUri
     Export:
       Name: !Sub "${AWS::StackName}-ApiRepositoryUri"
+
+  ScheduleSyncRepositoryUri:
+    Description: ECR repository URI for schedule_sync images
+    Value: !GetAtt ScheduleSyncRepository.RepositoryUri
+    Export:
+      Name: !Sub "${AWS::StackName}-ScheduleSyncRepositoryUri"

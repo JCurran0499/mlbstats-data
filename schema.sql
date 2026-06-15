@@ -185,3 +185,62 @@ CREATE TABLE standings (
     last_10_losses           SMALLINT
 );
 CREATE UNIQUE INDEX standings_unique ON standings (team_id, season_year, snapshot_date);
+
+CREATE TABLE play_by_play (
+    game_id             INTEGER  NOT NULL REFERENCES games(game_id),
+    play_id             INTEGER  NOT NULL,
+    game_date           DATE     NOT NULL,
+    season_year         SMALLINT NOT NULL,
+    inning              SMALLINT NOT NULL,
+    inning_half         VARCHAR(3) NOT NULL,
+    play_type           VARCHAR(30),
+    batter_id           INTEGER  REFERENCES players(player_id),
+    pitcher_id          INTEGER  REFERENCES players(player_id),
+    outs_before         SMALLINT,
+    balls_before        SMALLINT,
+    strikes_before      SMALLINT,
+    runner_on_first     INTEGER  REFERENCES players(player_id),
+    runner_on_second    INTEGER  REFERENCES players(player_id),
+    runner_on_third     INTEGER  REFERENCES players(player_id),
+    result_description  TEXT,
+    rbi                 SMALLINT,
+    home_score_after    SMALLINT,
+    away_score_after    SMALLINT,
+    is_scoring_play     BOOLEAN,
+    is_out              BOOLEAN,
+    exit_velocity       NUMERIC(4,1),
+    launch_angle        NUMERIC(4,1),
+    hit_distance        SMALLINT,
+    event_timestamp     TIMESTAMPTZ,
+    PRIMARY KEY (game_id, play_id)
+);
+CREATE INDEX play_by_play_game_date  ON play_by_play (game_date);
+CREATE INDEX play_by_play_batter_id  ON play_by_play (batter_id);
+CREATE INDEX play_by_play_pitcher_id ON play_by_play (pitcher_id);
+
+CREATE TABLE pitch_data (
+    game_id         INTEGER    NOT NULL REFERENCES games(game_id),
+    play_id         INTEGER    NOT NULL,
+    pitch_id        INTEGER    NOT NULL,
+    pitcher_id      INTEGER    REFERENCES players(player_id),
+    batter_id       INTEGER    REFERENCES players(player_id),
+    inning          SMALLINT,
+    inning_half     VARCHAR(3),
+    pitch_type      VARCHAR(4),
+    pitch_type_name VARCHAR(30),
+    start_speed     NUMERIC(4,1),
+    end_speed       NUMERIC(4,1),
+    spin_rate       SMALLINT,
+    spin_direction  SMALLINT,
+    plate_x         NUMERIC(5,2),
+    plate_z         NUMERIC(5,2),
+    zone            SMALLINT,
+    call            CHAR(1),
+    description     VARCHAR(30),
+    balls_before    SMALLINT,
+    strikes_before  SMALLINT,
+    pitch_timestamp TIMESTAMPTZ,
+    PRIMARY KEY (game_id, play_id, pitch_id)
+);
+CREATE INDEX pitch_data_game_play    ON pitch_data (game_id, play_id);
+CREATE INDEX pitch_data_pitcher_id   ON pitch_data (pitcher_id, pitch_timestamp);

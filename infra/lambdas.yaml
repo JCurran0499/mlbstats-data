@@ -27,6 +27,15 @@ Resources:
         - Key: Project
           Value: MLBStats
 
+  ScheduleSyncLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/mlbstats-schedule-sync
+      RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
   # ---- IAM ------------------------------------------------------------------
 
   RosterSyncRole:
@@ -137,6 +146,56 @@ Resources:
         - Key: Project
           Value: MLBStats
 
+  ScheduleSyncRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mlbstats-schedule-sync-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBScheduleAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:PutItem
+                Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/mlb-schedule"
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  ScheduleSyncSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mlbstats-schedule-sync-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt ScheduleSyncFunction.Arn
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
   # ---- Lambda ---------------------------------------------------------------
 
   RosterSyncFunction:
@@ -175,6 +234,26 @@ Resources:
       Environment:
         Variables:
           DB_CONNECTION_PARAMETER: /mlbstats/db/connection-string
+      Tags:
+        - Key: Project
+          Value: MLBStats
+
+  ScheduleSyncFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ScheduleSyncLogGroup
+    Properties:
+      FunctionName: mlbstats-schedule-sync
+      PackageType: Image
+      Code:
+        ImageUri: !Sub
+          - "${RepoUri}:{{resolve:ssm:/mlbstats/lambdas/schedule-sync/image-tag}}"
+          - RepoUri: !ImportValue mlbstats-ecr-ScheduleSyncRepositoryUri
+      Role: !GetAtt ScheduleSyncRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          DDB_TABLE: mlb-schedule
       Tags:
         - Key: Project
           Value: MLBStats
@@ -220,4 +299,17 @@ Resources:
       Target:
         Arn: !GetAtt StatsSyncFunction.Arn
         RoleArn: !GetAtt StatsSyncSchedulerRole.Arn
+      State: ENABLED
+
+  ScheduleSyncSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: mlbstats-schedule-sync
+      Description: Trigger schedule_sync every 15 minutes to keep today's game schedule current
+      ScheduleExpression: "rate(15 minutes)"
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt ScheduleSyncFunction.Arn
+        RoleArn: !GetAtt ScheduleSyncSchedulerRole.Arn
       State: ENABLED
