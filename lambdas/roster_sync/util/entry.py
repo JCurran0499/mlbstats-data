@@ -1,5 +1,6 @@
 import re
 import logging
+from shared.db import Player, Team
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -19,7 +20,7 @@ _division_abbreviations = {
 }
 
 
-def parse_height(height_str: str):
+def parse_height(height_str: str | None):
     if not height_str:
         return None
     m = re.match(r"(\d+)'\s*(\d+)\"", height_str.strip())
@@ -29,7 +30,7 @@ def parse_height(height_str: str):
     return int(m.group(1)) * 12 + int(m.group(2))
 
 
-def parse_roster_entry(entry: dict, team_id: int):
+def parse_roster_entry(entry: dict, team_id: int) -> Player:
     person: dict = entry.get("person", {})
     pos: dict    = entry.get("position", {})
     status: dict = entry.get("status", {})
@@ -37,29 +38,29 @@ def parse_roster_entry(entry: dict, team_id: int):
     if "code" not in status:
         logger.error("Missing status code for player_id=%s", person.get("id"))
 
-    return {
-        "player_id":            person["id"],
-        "first_name":           person.get("firstName", ""),
-        "last_name":            person.get("lastName", ""),
-        "full_name":            person.get("fullName", ""),
-        "nickname":             person.get("nickName") or None,
-        "team_id":              team_id,
-        "primary_number":       person.get("primaryNumber") or None,
-        "birth_date":           person.get("birthDate") or None,
-        "birth_country":        person.get("birthCountry") or None,
-        "birth_city":           person.get("birthCity") or None,
-        "birth_state_province": person.get("birthStateProvince") or None,
-        "primary_position":     pos.get("abbreviation") or None,
-        "bats":                 person.get("batSide", {}).get("code") or None,
-        "throws":               person.get("pitchHand", {}).get("code") or None,
-        "height_inches":        parse_height(person.get("height")),
-        "weight_lbs":           person.get("weight") or None,
-        "debut_date":           person.get("mlbDebutDate") or None,
-        "active":               person.get("active", False),
-        "status_code":          status["code"]
-    }
+    return Player(
+        player_id=             person["id"],
+        first_name=            person.get("firstName", ""),
+        last_name=             person.get("lastName", ""),
+        full_name=             person.get("fullName", ""),
+        nickname=              person.get("nickName") or None,
+        team_id=               team_id,
+        primary_number=        person.get("primaryNumber") or None,
+        birth_date=            person.get("birthDate") or None,
+        birth_country=         person.get("birthCountry") or None,
+        birth_city=            person.get("birthCity") or None,
+        birth_state_province=  person.get("birthStateProvince") or None,
+        primary_position=      pos.get("abbreviation") or None,
+        bats=                  person.get("batSide", {}).get("code") or None,
+        throws=                person.get("pitchHand", {}).get("code") or None,
+        height_inches=         parse_height(person.get("height")),
+        weight_lbs=            person.get("weight") or None,
+        debut_date=            person.get("mlbDebutDate") or None,
+        status_code=           status["code"],
+        headshot_url=          None
+    )
 
-def parse_team(team: dict):
+def parse_team(team: dict) -> Team:
     league_name   = team.get("league", {}).get("name", "")
     division_name = team.get("division", {}).get("name", "")
 
@@ -70,14 +71,14 @@ def parse_team(team: dict):
     if "abbreviation" not in team:
         logger.error("Missing abbreviation for team_id=%s", team.get("id"))
 
-    return {
-        "team_id":      team["id"],
-        "name":         team["name"],
-        "abbreviation": team["abbreviation"],
-        "city":         team.get("locationName", ""),
-        "league":       _league_abbreviations[league_name],
-        "division":     _division_abbreviations[division_name],
-        "venue_name":   team.get("venue", {}).get("name"),
-        "debut_year":   team.get("firstYearOfPlay"),
-        "active":       team.get("active", False)
-    }
+    return Team(
+        team_id=      team["id"],
+        name=         team["name"],
+        abbreviation= team["abbreviation"],
+        city=         team.get("locationName", ""),
+        league=       _league_abbreviations[league_name],
+        division=     _division_abbreviations[division_name],
+        venue_name=   team.get("venue", {}).get("name"),
+        debut_year=   team.get("firstYearOfPlay"),
+        logo_url=     None
+    )

@@ -16,19 +16,27 @@ logger.setLevel(logging.INFO)
 def fetch_teams(season: int):
     logger.info("Fetching MLB teams from Stats API")
     teams = statsapi.get("teams", {"sportId": 1, "hydrate": "venue", "season": season})
+    if teams == None:
+        logger.error("Failed to retrieve team info from MLB stats API")
+        raise ValueError("mlbstats api returned None")
+    
     return teams["teams"]
 
 
 def fetch_team_roster(team_id, team_name):
     logger.info("Fetching roster for team %s (%s)", team_id, team_name)
     roster = statsapi.get("team_roster", {"teamId": team_id, "rosterType": "40Man", "hydrate": "person"})
+    if roster == None:
+        logger.error("Failed to retrieve roster info from MLB stats API")
+        raise ValueError("mlbstats api returned None")
+    
     return roster["roster"]
 
 # --- DB sync layer -----------------------------------------------------------
 
-def sync_team_roster(cur: psycopg2.extensions.cursor, team_id: int, season_year: int, players: list[dict]):
+def sync_team_roster(cur: psycopg2.extensions.cursor, team_id: int, season_year: int, players: list[db.Player]):
     db_open = sql.fetch_active_roster(cur, team_id, season_year)
-    api_set = {p["player_id"]: p["status_code"] for p in players}
+    api_set = {p.player_id: p.status_code for p in players}
     added = dropped = updated = unchanged = 0
 
     for pid in set(db_open) - set(api_set):

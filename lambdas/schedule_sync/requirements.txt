@@ -1,2 +1,3 @@
 mlb-statsapi
 boto3
+pydantic
